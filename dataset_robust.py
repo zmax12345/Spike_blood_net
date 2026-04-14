@@ -55,8 +55,8 @@ class FlexibleBloodFlowDataset(Dataset):
 
                 if df.empty: continue
 
-                # 限制 ROI
-                df = df[(df['row'] >= 400) & (df['row'] <= 499) & (df['col'] >= 200) & (df['col'] <= 567)].copy()
+                # 1. 限制为您指定的新 ROI
+                df = df[(df['row'] >= 400) & (df['row'] <= 499) & (df['col'] >= 700) & (df['col'] <= 1067)].copy()
                 if df.empty: continue
 
                 # 过滤坏点
@@ -64,9 +64,9 @@ class FlexibleBloodFlowDataset(Dataset):
                 df = df[valid_events].copy()
                 if df.empty: continue
 
-                # 坐标平移，匹配网络输入尺寸 100x368
+                # 2. 坐标平移，匹配网络输入尺寸 100x368
                 df['row'] = df['row'] - 400
-                df['col'] = df['col'] - 200
+                df['col'] = df['col'] - 700  # 注意：这里必须改成减去 700，让列坐标从 0 开始
 
                 # 时间对齐与量化
                 t_start = df['t_in'].min()
@@ -89,7 +89,7 @@ class FlexibleBloodFlowDataset(Dataset):
                             (seq_df['t_bin'] >= frame_start_bin) & (seq_df['t_bin'] < frame_start_bin + self.T)]
 
                         if len(frame_df) == 0:
-                            coords, feats = torch.empty((0, 3), dtype=torch.int32), torch.empty((0, 1),
+                            coords, feats = torch.empty((0, 2), dtype=torch.int32), torch.empty((0, 1),
                                                                                                 dtype=torch.float32)
                         else:
                             locations = torch.IntTensor(
