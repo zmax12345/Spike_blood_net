@@ -76,7 +76,13 @@ class FlexibleBloodFlowDataset(Dataset):
                 total_frames = int(max_bin // self.T) + 1
 
                 # 提取时间切片序列
-                for seq_start_idx in range(total_frames - self.seq_len + 1):
+                # 设定滑动步长为 1000 步 (即 20ms 滑动一次)，这样截取的样本既有重叠又能提供新信息
+                stride = 1000
+                extracted_count = 0
+                max_samples_per_file = 10  # 限制每个 CSV 最多提取 5 个样本，防止内存炸裂
+
+                # 提取时间切片序列 (加入 stride 滑动步长)
+                for seq_start_idx in range(0, total_frames - self.seq_len + 1, stride):
                     sequence_data = []
                     start_bin = seq_start_idx * self.T
                     end_bin = (seq_start_idx + self.seq_len) * self.T
@@ -100,11 +106,13 @@ class FlexibleBloodFlowDataset(Dataset):
 
                         sequence_data.append((coords, feats))
 
-                    # 存入样本: (稀疏张量序列, 流速真值, 专属散斑尺寸)
+                    # 存入样本
                     samples.append((sequence_data, v_true, d_val))
+                    extracted_count += 1
 
-                    # 避免对同一文件提取过多高度重合的长序列，每个 CSV 只截取第一段完整的 100ms 用于训练即可
-                    break
+                    # 达到设定的样本上限后，再跳出当前文件的读取
+                    if extracted_count >= max_samples_per_file:
+                        break
 
         return samples
 
