@@ -61,11 +61,18 @@ class DenseMSFConv2D(nn.Module):
         b = self.b.view(1, -1, 1, 1)
         mthr = new_mem - b
 
-        # 多阈值脉冲发放 (Multi-Synaptic Firing)
-        spk = 0
-        for d in range(self.D):
-            # 依次判断膜电位是否越过 V_th + d*h
-            spk = spk + self.spike_fn(mthr - d * self.h)
+        # 【向量化优化后】：一次性并行计算所有阈值，彻底消灭 Python for 循环
+        # 创建维度为 [4, 1, 1, 1, 1] 的阈值倍数张量
+        d_vals = torch.arange(self.D, device=mthr.device, dtype=mthr.dtype).view(self.D, 1, 1, 1, 1)
+
+        # 将 mthr 扩展为 [1, Batch, Channels, Height, Width]
+        mthr_expanded = mthr.unsqueeze(0)
+
+        # 利用广播机制一次性减去所有阈值：得到 [4, Batch, Channels, Height, Width]
+        mthr_all = mthr_expanded - d_vals * self.h
+
+        # 一次性调用 spike_fn（替代了原来的 4 次调用），并在第 0 维度求和压平
+        spk = self.spike_fn(mthr_all).sum(dim=0)
 
         # 膜电位重置 (Hard Reset)：触发任何脉冲则归零
         spk_mask = (spk > 0).float()
